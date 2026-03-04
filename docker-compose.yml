@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    container_name: nextcloud-filefinder
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - db_data:/var/www/data        # SQLite database persistence
+      - ./logs:/var/log/apache2      # Apache logs
+    env_file:
+      - .env
+    environment:
+      - DB_PATH=/var/www/data/searches.db
+
+volumes:
+  db_data:

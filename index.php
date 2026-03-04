@@ -24,7 +24,7 @@
  * - Nextcloud lietotājs: $username
  * - App parole: $appPassword
  * - hCaptcha slepenā atslēga: $hcaptchaSecret
- * - hCaptcha sitekey (HTML formā): xxxxx-xxxxxx-xxxxxxxx-xxxxx-xxxxx
+ * - hCaptcha sitekey: HCAPTCHA_SITEKEY (no config.php / .env)
  * - CAPTCHA derīguma ilgums: $captcha_valid_duration (sekundēs)
  *
  * © Ģirts Bebrovskis, 2025
@@ -32,17 +32,19 @@
 session_start();
 if (isset($_GET['logout'])) {
     unset($_SESSION['hcaptcha_valid_until']);
-    header("Location: " . strtok($_SERVER["REQUEST_URI"], '?')); // Redirect to base URL without ?logout
+    header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
     exit;
 }
 
 $captchaStillValid = isset($_SESSION['hcaptcha_valid_until']) && $_SESSION['hcaptcha_valid_until'] >= time();
 
 require_once __DIR__ . '/config.php';
-$nextcloudUrl = NEXTCLOUD_URL;
-$username = NEXTCLOUD_USERNAME;
-$appPassword = NEXTCLOUD_PASSWORD;
-$hcaptchaSecret = HCAPTCHA_SECRET;
+require_once __DIR__ . '/logger.php';
+
+$nextcloudUrl       = NEXTCLOUD_URL;
+$username           = NEXTCLOUD_USERNAME;
+$appPassword        = NEXTCLOUD_PASSWORD;
+$hcaptchaSecret     = HCAPTCHA_SECRET;
 $captcha_valid_duration = CAPTCHA_VALID_DURATION;
 
 // Valodas noteikšana un saglabāšana sesijā
@@ -63,7 +65,6 @@ function removeNamespacesUsingRegex($xmlString) {
 }
 
 function downloadFile($fileUrl, $fileName, $username, $appPassword) {
-    // Start buffering to prevent notices
     if (!ob_get_level()) {
         ob_start();
     }
@@ -79,6 +80,9 @@ function downloadFile($fileUrl, $fileName, $username, $appPassword) {
     curl_close($downloadCh);
 
     if ($httpCode === 200 && !empty($data)) {
+        // Log the download
+        logDownload($fileName);
+
         header("Content-Description: Faila pārsūtīšana");
         header("Content-Type: application/octet-stream");
         header("Content-Disposition: attachment; filename=\"$fileName\"");
@@ -95,7 +99,7 @@ function downloadFile($fileUrl, $fileName, $username, $appPassword) {
 }
 
 function traverseDirectory($baseUrl, $username, $appPassword, $currentDir, &$visited, &$foundMatches, $depth, $searchString) {
-    if ($depth > 10) return;
+    if ($depth > MAX_TRAVERSE_DEPTH) return;
 
     $url = $currentDir ?: $baseUrl;
     if (in_array($url, $visited)) return;
@@ -146,20 +150,20 @@ function traverseDirectory($baseUrl, $username, $appPassword, $currentDir, &$vis
 function verifyHCaptcha($secret, $responseToken, $remoteIp = null) {
     $url = 'https://hcaptcha.com/siteverify';
     $data = [
-        'secret' => $secret,
+        'secret'   => $secret,
         'response' => $responseToken,
         'remoteip' => $remoteIp
     ];
 
     $ch = curl_init();
     curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
+        CURLOPT_URL            => $url,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => http_build_query($data),
-        CURLOPT_TIMEOUT => 30
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => http_build_query($data),
+        CURLOPT_TIMEOUT        => 30
     ]);
-    $result = curl_exec($ch);
+    $result   = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
@@ -170,6 +174,7 @@ function verifyHCaptcha($secret, $responseToken, $remoteIp = null) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
     // Check if hCaptcha was recently verified
     if (!isset($_SESSION['hcaptcha_valid_until']) || $_SESSION['hcaptcha_valid_until'] < time()) {
         $hcaptchaResponse = $_POST['h-captcha-response'] ?? "";
@@ -178,32 +183,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "<p><a href=\"" . htmlspecialchars($_SERVER['PHP_SELF']) . "\">" . htmlspecialchars($lang['back_to_search']) . "</a></p>";
             exit;
         }
-        // Set the validation timeout
         $_SESSION['hcaptcha_valid_until'] = time() + $captcha_valid_duration;
     }
 
-
     $searchString = trim($_POST['search_string'] ?? "");
-    if (strlen($searchString) < 7) {
+    if (strlen($searchString) < SEARCH_MIN_LENGTH) {
         echo "<p>" . htmlspecialchars($lang['min_characters']) . "</p>";
         echo "<p><a href=\"" . htmlspecialchars($_SERVER['PHP_SELF']) . "\">" . htmlspecialchars($lang['back_to_search']) . "</a></p>";
         exit;
     }
 
-    $visited = [];
+    $visited      = [];
     $foundMatches = [];
     traverseDirectory($nextcloudUrl, $username, $appPassword, "", $visited, $foundMatches, 0, $searchString);
+
+    // Log the search
+    logSearch($searchString, count($foundMatches), $language);
 
     if (empty($foundMatches)) {
         echo "<p>" . sprintf($lang['no_results'], htmlspecialchars($searchString)) . "</p>";
         echo "<p><a href=\"" . htmlspecialchars($_SERVER['PHP_SELF']) . "\">" . htmlspecialchars($lang['back_to_search']) . "</a></p>";
     } else {
-        $resultsPerPage = 30;
-        $totalResults = count($foundMatches);
-        $totalPages = ceil($totalResults / $resultsPerPage);
-        $currentPage = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-        $startIndex = ($currentPage - 1) * $resultsPerPage;
-        $endIndex = min($startIndex + $resultsPerPage, $totalResults);
+        $resultsPerPage = RESULTS_PER_PAGE;
+        $totalResults   = count($foundMatches);
+        $totalPages     = ceil($totalResults / $resultsPerPage);
+        $currentPage    = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+        $startIndex     = ($currentPage - 1) * $resultsPerPage;
+        $endIndex       = min($startIndex + $resultsPerPage, $totalResults);
 
         echo "<div class='container'>";
         echo "<p>" . sprintf($lang['search_results'], $currentPage, $totalPages) . "</p><ul>";
@@ -219,11 +225,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo "</div>";
         echo "<p><a href=\"" . htmlspecialchars($_SERVER['PHP_SELF']) . "\">" . htmlspecialchars($lang['back_to_search']) . "</a></p>";
     }
+
 } elseif (isset($_GET['download'])) {
-    $fileUrl = $_GET['download'];
+    $fileUrl  = $_GET['download'];
     $fileName = basename(parse_url($fileUrl, PHP_URL_PATH));
     downloadFile($fileUrl, $fileName, $username, $appPassword);
     exit;
+
 } else {
 ?>
 <!DOCTYPE html>
@@ -241,7 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="language-switch">
       <div class="logo">
         <img src="logo.png" alt="Logo" style="width: 157px; height: auto;">
-    </div>
+      </div>
         <form method="get" id="languageForm">
             <label for="lang-select"><?php echo $language === 'lv' ? 'Valoda | Language:' : 'Language | Valoda:'; ?></label>
             <select name="lang" id="lang-select" onchange="document.getElementById('languageForm').submit();">
@@ -252,12 +260,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <h1><?php echo htmlspecialchars($lang['search_title']); ?></h1>
     <form method="POST" action="">
-        <!--<label for="search_string"><?php echo htmlspecialchars($lang['search_label']); ?></label>-->
         <div class="description_text"><?php echo htmlspecialchars($lang['search_label']); ?></div>
-        <input type="text" id="search_string" name="search_string" minlength="7" required>
-           <?php if (!$captchaStillValid): ?>
-              <div class="h-captcha" data-sitekey="7150845c-2fd0-42d6-98ba-00ea777cc490"></div>
-           <?php endif; ?>
+        <input type="text" id="search_string" name="search_string" minlength="<?php echo SEARCH_MIN_LENGTH; ?>" required>
+        <?php if (!$captchaStillValid): ?>
+            <div class="h-captcha" data-sitekey="<?php echo htmlspecialchars(HCAPTCHA_SITEKEY); ?>"></div>
+        <?php endif; ?>
         <button type="submit"><?php echo htmlspecialchars($lang['search_button']); ?></button>
     </form>
     <div class="description_text"><?php echo htmlspecialchars($lang['description_text']); ?></div>
@@ -279,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!value) {
                 searchInput.setCustomValidity(translations.validation_empty_field);
-            } else if (enteredCharacters < 7) {
+            } else if (enteredCharacters < <?= SEARCH_MIN_LENGTH ?>) {
                 searchInput.setCustomValidity(
                     translations.validation_message.replace("${enteredCharacters}", enteredCharacters)
                 );
