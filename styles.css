@@ -1,0 +1,171 @@
+/*
+ * styles.css - Sertifikātu meklēšanas lapas stili
+ * Satur vispārējās izkārtojuma, tipogrāfijas un dizaina definīcijas.
+ * © Ģirts Bebrovskis, 2025
+ */
+ /* Import modern Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Global styles */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f9f9f9;
+    color: #333;
+    margin: 0;
+    padding: 0;
+}
+
+/* Container for content */
+.container {
+    max-width: 700px;
+    margin: 50px auto;
+    padding: 30px;
+    background-color: #fff;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+
+/* Header */
+h1 {
+    text-align: center;
+    font-size: 28px;
+    color: #ff6a00;
+    margin-bottom: 30px;
+    font-weight: 700;
+}
+
+/* Paragraphs */
+p {
+    font-size: 16px;
+    color: #555;
+    margin-bottom: 20px;
+}
+
+/* Links */
+a {
+    color: #ff6a00;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+a:hover {
+    text-decoration: underline;
+    color: #e65500;
+}
+
+/* Language switch */
+.language-switch {
+    width: 100px;
+    text-align: right;
+    margin-bottom: 20px;
+}
+
+/* Form */
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+label {
+    font-size: 15px;
+    font-weight: 500;
+    color: #444;
+    width: max-content;
+}
+
+input[type="text"] {
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    transition: border 0.3s;
+}
+
+input[type="text"]:focus {
+    border-color: #ff6a00;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 106, 0, 0.2);
+}
+
+/* Button */
+button {
+    padding: 12px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    background-color: #ff6a00;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+button:hover {
+    background-color: #e65500;
+}
+
+/* Description text block */
+.description_text {
+    text-align: justify;
+    margin-top: 20px;
+    font-weight: 400;
+}
+
+/* Search result list */
+ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+}
+
+li {
+    margin-bottom: 12px;
+}
+
+li a {
+    color: #ff6a00;
+    font-weight: 500;
+    transition: color 0.3s;
+}
+
+li a:hover {
+    color: #d64c00;
+    text-decoration: underline;
+}
+
+/* Pagination */
+.pagination {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.pagination a {
+    display: inline-block;
+    padding: 8px 12px;
+    margin: 0 4px;
+    background-color: #fff4ec;
+    border-radius: 6px;
+    color: #ff6a00;
+    font-weight: 500;
+    border: 1px solid #ff6a00;
+    transition: background 0.3s;
+}
+
+.pagination a:hover {
+    background-color: #ffe5d6;
+    color: #d64c00;
+}
+
+/* Responsive tweaks */
+@media (max-width: 600px) {
+    .container {
+        padding: 20px;
+        margin: 20px;
+    }
+
+    h1 {
+        font-size: 22px;
+    }
+}
