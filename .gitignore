@@ -1,0 +1,19 @@
+# Environment & secrets
+.env
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+error_log
+
+# PHP cache
+*.cache

@@ -35,16 +35,15 @@ if (isset($_GET['logout'])) {
     header("Location: " . strtok($_SERVER["REQUEST_URI"], '?')); // Redirect to base URL without ?logout
     exit;
 }
-$captcha_valid_duration = 1800; // 30 minutes
+
 $captchaStillValid = isset($_SESSION['hcaptcha_valid_until']) && $_SESSION['hcaptcha_valid_until'] >= time();
 
-// WebDAV konfigurācija
-$nextcloudUrl = "https://example.com/remote.php/dav/files/public_search";
-$username = "public_search";
-$appPassword = "xxxxxxxxxxxxxxxxxxx";
-
-// hCaptcha slepenā atslēga
-$hcaptchaSecret = "XX_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+require_once __DIR__ . '/config.php';
+$nextcloudUrl = NEXTCLOUD_URL;
+$username = NEXTCLOUD_USERNAME;
+$appPassword = NEXTCLOUD_PASSWORD;
+$hcaptchaSecret = HCAPTCHA_SECRET;
+$captcha_valid_duration = CAPTCHA_VALID_DURATION;
 
 // Valodas noteikšana un saglabāšana sesijā
 if (isset($_GET['lang']) && in_array($_GET['lang'], ['lv', 'en'])) {
