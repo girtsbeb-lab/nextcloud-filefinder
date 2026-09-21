@@ -1,19 +1,88 @@
 <?php
 /**
- * admin.php — Simple password-protected dashboard
- * Shows recent searches, downloads, and usage stats.
- *
- * Protect with ADMIN_PASSWORD in your .env file.
+ * admin.php — Password-protected admin dashboard
  * © Ģirts Bebrovskis, 2025
  */
 session_start();
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/logger.php';
 
-$adminPassword = $_ENV['ADMIN_PASSWORD'] ?? null;
+// -------------------------------------------------------
+// Admin password
+$adminPassword = "...";
 
-if (!$adminPassword) {
-    die('<p style="font-family:sans-serif;padding:2rem">ADMIN_PASSWORD is not set in .env</p>');
+// MySQL connection
+$db_config = [
+    'host'    => 'localhost',
+    'name'    => '...',
+    'user'    => '...',
+    'pass'    => '...',
+    'charset' => 'utf8mb4',
+];
+// -------------------------------------------------------
+
+function getDb(array $cfg): PDO {
+    static $pdo = null;
+    if ($pdo !== null) return $pdo;
+
+    $dsn = "mysql:host={$cfg['host']};dbname={$cfg['name']};charset={$cfg['charset']}";
+    $pdo = new PDO($dsn, $cfg['user'], $cfg['pass'], [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES   => false,
+    ]);
+    return $pdo;
+}
+
+function getStats(PDO $db): array {
+    try {
+        $totalSearches  = $db->query("SELECT COUNT(*) FROM searches")->fetchColumn();
+        $totalDownloads = $db->query("SELECT COUNT(*) FROM downloads")->fetchColumn();
+        $todaySearches  = $db->query("SELECT COUNT(*) FROM searches WHERE DATE(searched_at) = CURDATE()")->fetchColumn();
+        $topQueries     = $db->query("
+            SELECT query, COUNT(*) AS count
+            FROM searches
+            GROUP BY LOWER(query)
+            ORDER BY count DESC
+            LIMIT 5
+        ")->fetchAll();
+        return compact('totalSearches', 'totalDownloads', 'todaySearches', 'topQueries');
+    } catch (Exception $e) {
+        error_log("getStats error: " . $e->getMessage());
+        return [];
+    }
+}
+
+function getRecentSearches(PDO $db, int $limit = 100): array {
+    try {
+        $stmt = $db->prepare("
+            SELECT query, results, language, ip, searched_at
+            FROM searches
+            ORDER BY searched_at DESC
+            LIMIT :limit
+        ");
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    } catch (Exception $e) {
+        error_log("getRecentSearches error: " . $e->getMessage());
+        return [];
+    }
+}
+
+function getRecentDownloads(PDO $db, int $limit = 100): array {
+    try {
+        $stmt = $db->prepare("
+            SELECT filename, ip, downloaded_at
+            FROM downloads
+            ORDER BY downloaded_at DESC
+            LIMIT :limit
+        ");
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    } catch (Exception $e) {
+        error_log("getRecentDownloads error: " . $e->getMessage());
+        return [];
+    }
 }
 
 // Handle login / logout
@@ -40,7 +109,14 @@ if (!$isLoggedIn): ?>
     <title>Admin Login</title>
     <link rel="stylesheet" href="styles.css">
     <style>
-        .login-box { max-width: 360px; margin: 100px auto; padding: 2rem; background: #fff; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); }
+        .login-box {
+            max-width: 360px;
+            margin: 100px auto;
+            padding: 2rem;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        }
         .error { color: #c0392b; font-size: 14px; margin-top: 8px; }
     </style>
 </head>
@@ -59,9 +135,10 @@ if (!$isLoggedIn): ?>
 </html>
 <?php exit; endif;
 
-$stats   = getStats();
-$searches  = getRecentSearches(100);
-$downloads = getRecentDownloads(100);
+$db        = getDb($db_config);
+$stats     = getStats($db);
+$searches  = getRecentSearches($db, 100);
+$downloads = getRecentDownloads($db, 100);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -83,18 +160,20 @@ $downloads = getRecentDownloads(100);
         td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; color: #444; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: #fffaf7; }
-        .badge { display:inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .badge-found { background: #e6f9ee; color: #27ae60; }
         .badge-none  { background: #fdecea; color: #c0392b; }
         .badge-lang  { background: #eef4ff; color: #3b82f6; }
-        .top-queries li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; display:flex; justify-content: space-between; }
+        .top-queries { list-style: none; padding: 0; margin: 0; }
+        .top-queries li { padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; }
         .top-queries li:last-child { border: none; }
-        .logout { float: right; font-size: 14px; color: #999; }
-        .logout a { color: #ff6a00; }
+        .logout { font-size: 14px; color: #999; }
+        .logout a { color: #ff6a00; text-decoration: none; }
     </style>
 </head>
 <body>
 <div class="dashboard">
+
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
         <h1 style="color:#ff6a00;margin:0">📊 Dashboard</h1>
         <span class="logout"><a href="?logout=1">Logout</a></span>
@@ -120,7 +199,7 @@ $downloads = getRecentDownloads(100);
     <?php if (!empty($stats['topQueries'])): ?>
     <div class="section">
         <h2>🔥 Top Search Queries</h2>
-        <ul class="top-queries" style="list-style:none;padding:0;margin:0">
+        <ul class="top-queries">
             <?php foreach ($stats['topQueries'] as $q): ?>
             <li>
                 <span><?= htmlspecialchars($q['query']) ?></span>
@@ -144,7 +223,7 @@ $downloads = getRecentDownloads(100);
                     <td><?= htmlspecialchars($row['query']) ?></td>
                     <td>
                         <span class="badge <?= $row['results'] > 0 ? 'badge-found' : 'badge-none' ?>">
-                            <?= $row['results'] ?>
+                            <?= (int)$row['results'] ?>
                         </span>
                     </td>
                     <td><span class="badge badge-lang"><?= htmlspecialchars($row['language']) ?></span></td>
@@ -174,6 +253,7 @@ $downloads = getRecentDownloads(100);
             </tbody>
         </table>
     </div>
+
 </div>
 </body>
 </html>
