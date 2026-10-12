@@ -19,12 +19,19 @@ A lightweight **PHP 8.4** web application for searching and downloading quality 
 ## 📁 Project Structure
 
 sertifikati/
+
 ├── conf/
+
 │   └── .env.example       # Environment configuration template
+
 ├── schema.sql             # MySQL database structure (downloads & searches)
+
 ├── Dockerfile             # PHP 8.4 + Apache container definition
+
 ├── docker-compose.yml     # Multi-container stack orchestration
+
 ├── logo.png               # Tracked project branding logo
+
 └── [PHP application files & assets]
 
 ---
