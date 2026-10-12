@@ -39,6 +39,7 @@ Copy the configuration template and populate your credentials:
 Bash
 cp conf/.env.example .env
 nano .env
+
 3. Start the Application
 Bash
 docker compose up -d --build
