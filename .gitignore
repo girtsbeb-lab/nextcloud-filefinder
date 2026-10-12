@@ -1,0 +1,4 @@
+.env
+docker-data/
+*.sql
+.DS_Store

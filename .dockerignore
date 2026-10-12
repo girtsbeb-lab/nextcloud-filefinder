@@ -1,0 +1,6 @@
+.git
+.env
+conf
+*.sql
+*.log
+index.php.org
